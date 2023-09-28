@@ -1,30 +1,70 @@
+import logging
 from aiohttp import web
-from aiohttp.web import Request, FileResponse
+from aiohttp.web import Request, FileResponse, Response, UrlDispatcher
+
+class AuthenticationFailedException(Exception):
+    pass
 
 
-async def test_home(request: Request):
-    return web.Response(text='mother fucker')
+def get_dir_list_route():
+    return Response(body='TODO')
 
 
-async def test_file(request: Request):
-    base_dir = './static/images/'
-    file_name = request.url.name
+def get_static_route(base_dir: str = '.',
+                     auth: callable = None,
+                     extensions: str = None,
+                     error_map: dict = None
+                     ):
 
-    print(request.headers.items())
+    if error_map is None:
+        error_map = {}
 
-    print('auth', request.headers.get('Auth'))
+    def do_error(err: Exception):
+        print(type(err))
+        return Response(status=401,
+                        body=str(err),
+                        reason='some reason')
 
-    return FileResponse(f'{base_dir}{file_name}')
+    async def static_route(request: Request):
+        file_name = request.url.name
+
+        try:
+            if auth:
+                success, err = auth(request.headers.get('Auth'))
+
+                if err is not None:
+                    raise AuthenticationFailedException('some err')
+            else:
+                logging.debug(f'static_route:: no auth required {request.url}')
+
+            print(request.headers.items())
+
+            print('auth', request.headers.get('Auth'))
+
+            return FileResponse(f'{base_dir}{file_name}')
+
+        except AuthenticationFailedException as ae:
+            return do_error(ae)
+        except Exception as e:
+            print('exception!!!!!')
+            return do_error(e)
+
+    return static_route
 
 
 class StaticServer:
 
     def __init__(self):
         self._app = web.Application()
-        self._app.router.add_get('/', test_home)
-        self._app.router.add_get('/image/{tail:.*}', test_file)
+        self._app.ha
 
     def start(self):
         web.run_app(self._app)
 
+    @property
+    def app(self) -> web.Application:
+        return self._app
 
+    @property
+    def router(self) -> UrlDispatcher:
+        return self._app.router
