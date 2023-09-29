@@ -1,53 +1,74 @@
 import logging
+import os.path
 from aiohttp import web
-from aiohttp.web import Request, FileResponse, Response, UrlDispatcher
-
-class AuthenticationFailedException(Exception):
-    pass
+from aiohttp.web import Request, FileResponse, Response, UrlDispatcher, \
+    HTTPNotFound, HTTPFound, HTTPException, HTTPUnauthorized
 
 
-def get_dir_list_route():
-    return Response(body='TODO')
+class ServerErrors:
+    @web.middleware
+    async def errors_middleware(self, request, handler):
+        """
+        doesn't do much at the moment except catch any non HTTPExceptions and return them
+        NOTE stream exceptions can't be caught this way and I'm not sure how you're ment to get them...
+        could be used to modify what happens on errs
+
+        :param request:
+        :param handler:
+        :return:
+        """
+        try:
+            response = await handler(request)
+
+        except Exception as e:
+            if isinstance(e, HTTPException):
+                raise e
+
+            return Response(status=500,
+                            body=str(f'our own bad exception: {e}'),
+                            reason='wtf')
+
+        return response
+
+
+class NIP98:
+
+    def do_check(self, request):
+        print(f'check auth....{request.rel_url}')
+        auth_head = request.headers.get('Auth')
+
+        print('auth', auth_head)
+
+        if auth_head is None:
+            raise HTTPUnauthorized()
+
+    @web.middleware
+    async def middleware_check(self, request, handler):
+        self.do_check(request)
+        return await handler(request)
 
 
 def get_static_route(base_dir: str = '.',
                      auth: callable = None,
-                     extensions: str = None,
-                     error_map: dict = None
+                     extensions: str = None
                      ):
-
-    if error_map is None:
-        error_map = {}
-
-    def do_error(err: Exception):
-        print(type(err))
-        return Response(status=401,
-                        body=str(err),
-                        reason='some reason')
 
     async def static_route(request: Request):
         file_name = request.url.name
 
-        try:
-            if auth:
-                success, err = auth(request.headers.get('Auth'))
+        if auth:
+            auth(request)
+        else:
+            logging.debug(f'static_route:: no auth required {request.url}')
 
-                if err is not None:
-                    raise AuthenticationFailedException('some err')
-            else:
-                logging.debug(f'static_route:: no auth required {request.url}')
+        full_name = f'{base_dir}{file_name}'
 
-            print(request.headers.items())
+        # FIXME: couldn't work out how to catch the err from FileResponse
+        #  so for now do ourself and raise, maybe this is best we can do?
+        if not os.path.isfile(full_name):
+            raise HTTPNotFound(text=f'file not found {full_name}')
 
-            print('auth', request.headers.get('Auth'))
-
-            return FileResponse(f'{base_dir}{file_name}')
-
-        except AuthenticationFailedException as ae:
-            return do_error(ae)
-        except Exception as e:
-            print('exception!!!!!')
-            return do_error(e)
+        return FileResponse(full_name)
 
     return static_route
 
@@ -55,8 +76,9 @@ def get_static_route(base_dir: str = '.',
 class StaticServer:
 
     def __init__(self):
-        self._app = web.Application()
-        self._app.ha
+
+        my_errors = ServerErrors()
+        self._app = web.Application(middlewares=[my_errors.errors_middleware])
 
     def start(self):
         web.run_app(self._app)
