@@ -54,6 +54,7 @@ def get_static_route(base_dir: str = '.',
                      ):
 
     async def static_route(request: Request):
+        print('WTF!!!!')
         file_name = request.url.name
 
         if auth:
@@ -62,7 +63,7 @@ def get_static_route(base_dir: str = '.',
             logging.debug(f'static_route:: no auth required {request.url}')
 
         full_name = f'{base_dir}{file_name}'
-
+        logging.debug(f'static_route:: dir -  {base_dir} file - {full_name}')
         # FIXME: couldn't work out how to catch the err from FileResponse
         #  so for now do ourself and raise, maybe this is best we can do?
         if not os.path.isfile(full_name):

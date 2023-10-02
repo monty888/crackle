@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test auths</title>
+</head>
+<body>
+
+<input id="file_text" type="text" placeholder="filename" autofocus/>
+<input id="go_but" type="button" value="go!"/>
+<div id="fetch_status"></div>
+
+
+<script>
+    "use strict";
+    let go_but = document.getElementById('go_but'),
+        file_txt = document.getElementById('file_text'),
+        status_con = document.getElementById('fetch_status'),
+        id = 0;
+
+
+    go_but.addEventListener('click', (e) => {
+        do_fetch(file_txt.value);
+    });
+
+    async function do_fetch(resource){
+        let headers = new Headers({
+                'Auth': 'theauthevent'
+            }),
+            response,
+            img_data,
+            img_url,
+            img_el,
+            img_con_el;
+
+        response = await fetch(resource, {
+            method: 'GET',
+            headers: {
+                'Auth': 'theauthevent'
+            }
+        })
+
+
+        let result_line = [
+            '<div>',
+            '<span style="display:inline-block;width:100px" >' + response.status + '</span>',
+            '<span style="display:inline-block;width:300px">' + response.statusText + '</span>',
+            '<span style="display:inline-block;width:500px">' + resource + '</span>',
+            '<span id="img-con-'+ id +'" style="display:inline-block;width:500px"></span>',
+            '</div>'
+        ];
+
+        status_con.insertAdjacentHTML('afterbegin', result_line.join(''));
+        img_con_el = document.getElementById('img-con-'+id);
+
+        if(response.status == 200){
+            img_data = await response.blob();
+            img_url = URL.createObjectURL(img_data);
+            img_el = document.createElement("img");
+            img_el.src = img_url;
+            img_el.style.height = '100px';
+            img_el.style.width = '100px';
+
+
+            img_con_el.appendChild(img_el);
+        }
+
+
+
+
+
+
+
+
+        id +=1;
+    }
+
+
+
+</script>
+</body>
+</html>
