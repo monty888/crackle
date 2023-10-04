@@ -15,14 +15,16 @@ def run_server():
 
     image_base_dir = 'static/image/'
     html_base_dir = 'static/html/'
+    script_base_dir = 'static/script/'
 
 
     my_server.router.add_get('/', home_route)
     my_server.router.add_get('/image/{tail:.*}', get_static_route(base_dir=image_base_dir,
                                                                   auth=my_nip98.do_check))
     my_server.router.add_get('/html/{tail:.*}', get_static_route(base_dir=html_base_dir))
+    my_server.router.add_get('/script/{tail:.*}', get_static_route(base_dir=script_base_dir))
 
-    my_server.start()
+    my_server.start(host='192.168.0.30', port=8080)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

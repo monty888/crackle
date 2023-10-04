@@ -39,7 +39,10 @@ class NIP98:
 
         print('auth', auth_head)
 
-        if auth_head is None:
+        if auth_head is None or auth_head != 'ce444507e64d745999a14f7c64f253ff779acbc3cc7e1b5cb11211a76bfe4501':
+
+
+
             raise HTTPUnauthorized()
 
     @web.middleware
@@ -81,8 +84,8 @@ class StaticServer:
         my_errors = ServerErrors()
         self._app = web.Application(middlewares=[my_errors.errors_middleware])
 
-    def start(self):
-        web.run_app(self._app)
+    def start(self, **kargs):
+        web.run_app(self._app, **kargs)
 
     @property
     def app(self) -> web.Application:
