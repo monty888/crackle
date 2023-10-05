@@ -46,20 +46,41 @@
         do_fetch(file_txt.value);
     });
 
+
+    async function generate_auth_event(url){
+        let auth_evt = {
+                id: null,
+                pubkey: NOSTR.getPublicKey(use_priv),
+                content: '',
+                kind: 27235,
+                created_at: Math.floor(Date.now() / 1000),
+                tags: [
+                    ['u', window.location.protocol + '//' + window.location.host + url],
+                    ['method', 'GET']
+                ]
+            },
+            ret;
+
+        auth_evt.id = await NOSTR.calculateId(auth_evt);
+        auth_evt.sig = await NOSTR.signId(use_priv, auth_evt.id);
+
+        // return the auth event stringified and base64encode to be used in auth header
+        return btoa(JSON.stringify(auth_evt));
+
+    }
+
     async function do_fetch(resource){
-        let headers = new Headers({
-                'Auth': 'theauthevent'
-            }),
-            response,
+        let response,
             img_data,
             img_url,
             img_el,
             img_con_el;
 
+
         response = await fetch(resource, {
             method: 'GET',
             headers: {
-                'Auth': NOSTR.getPublicKey(use_priv)
+                'Auth': await generate_auth_event(resource)
             }
         })
 

@@ -1,9 +1,16 @@
+from abc import abstractmethod
 import logging
 import os.path
+import base64
+import json
+from datetime import datetime
+
+import aiohttp
 from aiohttp import web
 from aiohttp.web import Request, FileResponse, Response, UrlDispatcher, \
     HTTPNotFound, HTTPFound, HTTPException, HTTPUnauthorized
-
+from monstr.event.event import Event
+from monstr.util import util_funcs
 
 class ServerErrors:
     @web.middleware
@@ -31,18 +38,62 @@ class ServerErrors:
         return response
 
 
+class ResourceAuthChecker:
+
+    @abstractmethod
+    def is_authorised(self, auth_evt: Event, request: Request) -> bool:
+        pass
+
+
 class NIP98:
 
+    def __init__(self,
+                 time_window: int =60,
+                 resource_check: ResourceAuthChecker = None):
+
+        self._time_window = time_window
+
+        # to check futher if resource/url can be accessed,
+        # not called until we already passed basic NIP98 checks
+        self._resource_check = resource_check
+
     def do_check(self, request):
-        print(f'check auth....{request.rel_url}')
+        logging.debug(f'NIP98:do_check: {request.url}')
+
         auth_head = request.headers.get('Auth')
+        is_auth = False
+        try:
+            if auth_head:
+                auth_str = base64.b64decode(auth_head).decode()
+                auth_evt = Event.from_JSON(json.loads(auth_str))
+                if auth_evt.is_valid():
+                    # at this point we have a valid event in the http auth header
+                    # now we'll check that its valid by NIP98 criteria
+                    # that is
+                    #   correct kind +
+                    #       in a reasonable time window to the server +
+                    #       u tag url matches request url
 
-        print('auth', auth_head)
 
-        if auth_head is None or auth_head != 'ce444507e64d745999a14f7c64f253ff779acbc3cc7e1b5cb11211a76bfe4501':
+                    # create min and max accept ticks, time window is split 80% to before
+                    # our clock
+                    now = util_funcs.date_as_ticks(datetime.now())
+                    min_accept = now - int(self._time_window*.8)
+                    max_accept = min_accept + self._time_window
 
+                    if auth_evt.kind == 27235 and \
+                            min_accept <= auth_evt.created_at_ticks <= max_accept and \
+                            auth_evt.tags.get_tag_value_pos('u', default='') == str(request.url):
 
+                        if self._resource_check is None or \
+                                self._resource_check.is_authorised(auth_evt=auth_evt,
+                                                                   request=request):
+                            is_auth = True
 
+        except Exception as e:
+            print(e)
+
+        if not is_auth:
             raise HTTPUnauthorized()
 
     @web.middleware
