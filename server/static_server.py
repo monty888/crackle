@@ -89,7 +89,8 @@ class NIP98:
                                 self._resource_check.is_authorised(auth_evt=auth_evt,
                                                                    request=request):
                             is_auth = True
-
+            else:
+                logging.debug('NIP98:do_check: no auth head?!?')
         except Exception as e:
             print(e)
 
@@ -108,7 +109,6 @@ def get_static_route(base_dir: str = '.',
                      ):
 
     async def static_route(request: Request):
-        print('WTF!!!!')
         file_name = request.url.name
 
         if auth:
