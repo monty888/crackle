@@ -8,8 +8,15 @@
 </head>
 <body>
 
-<input id="priv_hex" type="text" placeholder="priv_hex" autofocus/><br>
-<input id="file_text" type="text" placeholder="filename" disabled/>
+<div id="ext_con" style="display:none">
+    use extension<input id="use_ext" type="checkbox">
+</div>
+<input style="display:block" id="priv_hex" type="text" placeholder="priv_hex" autofocus/>
+<input id="file_text" type="text" placeholder="filename" disabled/><br>
+<div>
+    current pub_k:
+    <span id="pub_k_con">?</span>
+</div>
 <input id="go_but" type="button" value="go!" disabled/>
 <div id="fetch_status"></div>
 
@@ -20,37 +27,90 @@
         go_but = document.getElementById('go_but'),
         file_txt = document.getElementById('file_text'),
         status_con = document.getElementById('fetch_status'),
+        ext_con = document.getElementById('ext_con'),
+        use_ext_check = document.getElementById('use_ext'),
+        pub_k_con = document.getElementById('pub_k_con'),
         id = 0,
-        use_priv = null;
+        current_pub_k = null,
+        current_priv_k = null;
+
+    async function update_state(){
+        // using extension
+        if(use_ext_check.checked && window.nostr){
+            priv_hex.style.display = 'none';
+            current_priv_k = null;
+            current_pub_k = await window.nostr.getPublicKey()
+            pub_k_con.textContent = current_pub_k;
+            go_but.disabled = file_txt.disabled = false;
+        }else{
+            priv_hex.style.display = 'block';
+            try{
+                current_priv_k = priv_txt.value;
+                current_pub_k = NOSTR.getPublicKey(current_priv_k);
+                pub_k_con.textContent = NOSTR.getPublicKey(current_pub_k);
+                go_but.disabled = file_txt.disabled = false;
+            }catch{
+                current_priv_k = null;
+                current_pub_k = null;
+                pub_k_con.textContent = '?';
+                go_but.disabled = file_txt.disabled = true;
+            }
 
 
-    function get_priv(value){
-        try{
-            NOSTR.getPublicKey(value);
-            use_priv = value
-        }catch(e){
-            use_priv = null;
         }
-
-
-        go_but.disabled = file_txt.disabled = use_priv===null;
-
     }
 
     priv_txt.addEventListener('keyup', (e) => {
-        get_priv(priv_txt.value);
+        update_state();
     });
-    get_priv(priv_txt.value)
+
+
+    use_ext_check.addEventListener('change', (e) => {
+        update_state();
+    });
 
     go_but.addEventListener('click', (e) => {
         do_fetch(file_txt.value);
     });
 
 
+    /*
+        check for nostr ext, if we find it we'll add extra check to use that key
+        we eventually give up when check_nost_count is 0
+        Maybe there is a way to get extension loaded event?
+        also not with this will end up with
+            window.NOSTR - nostr lib funcs
+            window.nostr - extension
+        probably this isn't great naming!...
+    */
+    document.addEventListener('DOMContentLoaded', () => {
+        let check_nost_count = 10,
+            timer;
+
+        // intial state
+        update_state();
+
+        timer = setInterval(()=>{
+            if(window.nostr){
+                clearInterval(timer);
+                ext_con.style.display = 'block';
+                update_state();
+            }
+
+            // give up
+            if(check_nost_count <=0){
+                clearInterval(timer);
+            }
+
+            check_nost_count -= 1;
+            console.log(window.nostr);
+        }, 200)
+    });
+
     async function generate_auth_event(url){
         let auth_evt = {
                 id: null,
-                pubkey: NOSTR.getPublicKey(use_priv),
+                pubkey: current_pub_k,
                 content: '',
                 kind: 27235,
                 created_at: Math.floor(Date.now() / 1000),
@@ -62,7 +122,16 @@
             ret;
 
         auth_evt.id = await NOSTR.calculateId(auth_evt);
-        auth_evt.sig = await NOSTR.signId(use_priv, auth_evt.id);
+
+        // using ext
+        if(current_priv_k===null){
+            auth_evt = await window.nostr.signEvent(auth_evt);
+            console.log(auth_evt)
+        // using user entered priv_k
+        }else{
+            auth_evt.sig = await NOSTR.signId(current_priv_k, auth_evt.id);
+        }
+
 
         // return the auth event stringified and base64encode to be used in auth header
         return btoa(JSON.stringify(auth_evt));
