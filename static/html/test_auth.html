@@ -126,7 +126,6 @@
         // using ext
         if(current_priv_k===null){
             auth_evt = await window.nostr.signEvent(auth_evt);
-            console.log(auth_evt)
         // using user entered priv_k
         }else{
             auth_evt.sig = await NOSTR.signId(current_priv_k, auth_evt.id);
@@ -149,7 +148,10 @@
         response = await fetch(resource, {
             method: 'GET',
             headers: {
-                'Auth': await generate_auth_event(resource)
+                'Auth': await generate_auth_event(resource),
+                // stop caching of images when switch users - in reality you'd probably want to do
+                // something better to keep caching for same user
+                'Cache-Control': 'no-cache, private'
             }
         })
 
