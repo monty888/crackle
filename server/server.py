@@ -4,13 +4,14 @@ import os.path
 import base64
 import json
 from datetime import datetime
-
-import aiohttp
+from urllib.parse import urlparse
 from aiohttp import web
 from aiohttp.web import Request, FileResponse, Response, UrlDispatcher, \
     HTTPNotFound, HTTPFound, HTTPException, HTTPUnauthorized
 from monstr.event.event import Event
 from monstr.util import util_funcs
+
+
 
 class ServerErrors:
     @web.middleware
@@ -61,6 +62,7 @@ class NIP98:
         logging.debug(f'NIP98:do_check: {request.url}')
 
         auth_head = request.headers.get('Auth')
+
         is_auth = False
         try:
             if auth_head:
@@ -81,9 +83,17 @@ class NIP98:
                     min_accept = now - int(self._time_window*.8)
                     max_accept = min_accept + self._time_window
 
+                    # X post - e.g. this is the case if we're just authing for nginx
+                    # likely this will need improving
+                    request_url = request.url
+                    if 'X-Origin-URI' in request.headers:
+                        request_url = request.headers.get('X-Origin-URI')
+                        ref_host = urlparse(request.headers.get('Referer'))
+                        request_url = f'{ref_host.scheme}://{ref_host.hostname}{request_url}'
+
                     if auth_evt.kind == 27235 and \
                             min_accept <= auth_evt.created_at_ticks <= max_accept and \
-                            auth_evt.tags.get_tag_value_pos('u', default='') == str(request.url):
+                            auth_evt.tags.get_tag_value_pos('u', default='') == request_url:
 
                         if self._resource_check is None or \
                                 self._resource_check.is_authorised(auth_evt=auth_evt,
